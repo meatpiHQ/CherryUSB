@@ -6,6 +6,7 @@
 #include "usbh_core.h"
 #include "usbh_rndis.h"
 #include "rndis_protocol.h"
+#include "usbh_eth_shared_buf.h"
 
 #undef USB_DBG_TAG
 #define USB_DBG_TAG "usbh_rndis"
@@ -13,13 +14,12 @@
 
 #define DEV_FORMAT "/dev/rndis"
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rndis_buf[512];
+#define g_rndis_buf       g_usbh_eth_shared_ctrl_buffer
+#define g_rndis_rx_buffer g_usbh_eth_shared_rx_buffer
+#define g_rndis_tx_buffer g_usbh_eth_shared_tx_buffer
 
 #define CONFIG_USBHOST_RNDIS_ETH_MAX_FRAME_SIZE 1514
 #define CONFIG_USBHOST_RNDIS_ETH_MSG_SIZE       (CONFIG_USBHOST_RNDIS_ETH_MAX_FRAME_SIZE + 44)
-
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rndis_rx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RNDIS_ETH_MAX_RX_SIZE, CONFIG_USB_ALIGN_SIZE)];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rndis_tx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RNDIS_ETH_MAX_TX_SIZE, CONFIG_USB_ALIGN_SIZE)];
 // static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rndis_inttx_buffer[USB_ALIGN_UP(16, CONFIG_USB_ALIGN_SIZE)];
 
 static struct usbh_rndis g_rndis_class;

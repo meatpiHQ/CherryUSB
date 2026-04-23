@@ -5,6 +5,7 @@
  */
 #include "usbh_core.h"
 #include "usbh_rtl8152.h"
+#include "usbh_eth_shared_buf.h"
 
 #undef USB_DBG_TAG
 #define USB_DBG_TAG "rtl8152"
@@ -12,11 +13,10 @@
 
 #define DEV_FORMAT "/dev/rtl8152"
 
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_rx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RTL8152_ETH_MAX_RX_SIZE, CONFIG_USB_ALIGN_SIZE)];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_tx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_RTL8152_ETH_MAX_TX_SIZE, CONFIG_USB_ALIGN_SIZE)];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_inttx_buffer[USB_ALIGN_UP(2, CONFIG_USB_ALIGN_SIZE)];
-
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_rtl8152_buf[USB_ALIGN_UP(32, CONFIG_USB_ALIGN_SIZE)];
+#define g_rtl8152_rx_buffer    g_usbh_eth_shared_rx_buffer
+#define g_rtl8152_tx_buffer    g_usbh_eth_shared_tx_buffer
+#define g_rtl8152_inttx_buffer g_usbh_eth_shared_int_buffer
+#define g_rtl8152_buf          g_usbh_eth_shared_ctrl_buffer
 
 static struct usbh_rtl8152 g_rtl8152_class;
 

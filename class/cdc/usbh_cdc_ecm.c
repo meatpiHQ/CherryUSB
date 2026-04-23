@@ -5,6 +5,7 @@
  */
 #include "usbh_core.h"
 #include "usbh_cdc_ecm.h"
+#include "usbh_eth_shared_buf.h"
 
 #undef USB_DBG_TAG
 #define USB_DBG_TAG "usbh_cdc_ecm"
@@ -24,9 +25,9 @@
 #define CONFIG_USBHOST_CDC_ECM_PKT_FILTER   0x000C
 #define CONFIG_USBHOST_CDC_ECM_ETH_MAX_SIZE 1514U
 
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_rx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_CDC_ECM_ETH_MAX_SIZE, CONFIG_USB_ALIGN_SIZE)];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_tx_buffer[USB_ALIGN_UP(CONFIG_USBHOST_CDC_ECM_ETH_MAX_SIZE, CONFIG_USB_ALIGN_SIZE)];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_inttx_buffer[USB_ALIGN_UP(16, CONFIG_USB_ALIGN_SIZE)];
+#define g_cdc_ecm_rx_buffer    g_usbh_eth_shared_rx_buffer
+#define g_cdc_ecm_tx_buffer    g_usbh_eth_shared_tx_buffer
+#define g_cdc_ecm_inttx_buffer g_usbh_eth_shared_int_buffer
 
 static struct usbh_cdc_ecm g_cdc_ecm_class;
 
