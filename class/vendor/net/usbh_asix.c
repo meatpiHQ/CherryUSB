@@ -49,6 +49,12 @@ static struct usbh_asix g_asix_class;
 #define SPEED_100 0
 #define SPEED_10  1
 
+static bool usbh_asix_is_ready(const struct usbh_asix *asix_class)
+{
+    return asix_class && asix_class->hport && asix_class->intin &&
+           asix_class->bulkin && asix_class->bulkout;
+}
+
 static int usbh_asix_read_cmd(struct usbh_asix *asix_class,
                               uint8_t cmd,
                               uint16_t value,
@@ -643,6 +649,8 @@ static int usbh_asix_disconnect(struct usbh_hubport *hport, uint8_t intf)
             usbh_asix_stop(asix_class);
         }
 
+        hport->config.intf[intf].priv = NULL;
+        hport->config.intf[intf].devname[0] = '\0';
         memset(asix_class, 0, sizeof(struct usbh_asix));
     }
 
@@ -652,6 +660,10 @@ static int usbh_asix_disconnect(struct usbh_hubport *hport, uint8_t intf)
 int usbh_asix_get_connect_status(struct usbh_asix *asix_class)
 {
     int ret;
+
+    if (!asix_class || !asix_class->hport || !asix_class->intin) {
+        return -USB_ERR_NOTCONN;
+    }
 
     usbh_int_urb_fill(&asix_class->intin_urb, asix_class->hport, asix_class->intin, g_asix_inttx_buffer, 8, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&asix_class->intin_urb);
@@ -691,7 +703,7 @@ void usbh_asix_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 find_class:
     // clang-format on
     g_asix_class.connect_status = false;
-    if (usbh_find_class_instance("/dev/asix") == NULL) {
+    if (usbh_find_class_instance("/dev/asix") == NULL || !g_asix_class.hport) {
         goto delete;
     }
 
@@ -706,6 +718,11 @@ find_class:
 
     g_asix_rx_length = 0;
     while (1) {
+        if (!g_asix_class.hport || !g_asix_class.bulkin) {
+            usb_osal_msleep(100);
+            goto find_class;
+        }
+
         usbh_bulk_urb_fill(&g_asix_class.bulkin_urb, g_asix_class.hport, g_asix_class.bulkin, &g_asix_rx_buffer[g_asix_rx_length], transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_asix_class.bulkin_urb);
         if (ret < 0) {
@@ -770,7 +787,7 @@ int usbh_asix_eth_output(uint32_t buflen)
 {
     uint16_t actual_len;
 
-    if (g_asix_class.connect_status == false) {
+    if (g_asix_class.connect_status == false || !usbh_asix_is_ready(&g_asix_class)) {
         return -USB_ERR_NOTCONN;
     }
 

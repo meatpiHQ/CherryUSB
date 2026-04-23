@@ -31,6 +31,12 @@
 
 static struct usbh_cdc_ecm g_cdc_ecm_class;
 
+static bool usbh_cdc_ecm_is_ready(const struct usbh_cdc_ecm *cdc_ecm_class)
+{
+    return cdc_ecm_class && cdc_ecm_class->hport && cdc_ecm_class->intin &&
+           cdc_ecm_class->bulkin && cdc_ecm_class->bulkout;
+}
+
 static int usbh_cdc_ecm_set_eth_packet_filter(struct usbh_cdc_ecm *cdc_ecm_class, uint16_t filter_value)
 {
     struct usb_setup_packet *setup;
@@ -52,6 +58,10 @@ static int usbh_cdc_ecm_set_eth_packet_filter(struct usbh_cdc_ecm *cdc_ecm_class
 int usbh_cdc_ecm_get_connect_status(struct usbh_cdc_ecm *cdc_ecm_class)
 {
     int ret;
+
+    if (!cdc_ecm_class || !cdc_ecm_class->hport || !cdc_ecm_class->intin) {
+        return -USB_ERR_NOTCONN;
+    }
 
     usbh_int_urb_fill(&cdc_ecm_class->intin_urb, cdc_ecm_class->hport, cdc_ecm_class->intin, g_cdc_ecm_inttx_buffer, 16, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&cdc_ecm_class->intin_urb);
@@ -227,6 +237,8 @@ static int usbh_cdc_ecm_disconnect(struct usbh_hubport *hport, uint8_t intf)
             usbh_cdc_ecm_stop(cdc_ecm_class);
         }
 
+        hport->config.intf[intf].priv = NULL;
+        hport->config.intf[intf].devname[0] = '\0';
         memset(cdc_ecm_class, 0, sizeof(struct usbh_cdc_ecm));
     }
 
@@ -244,7 +256,7 @@ void usbh_cdc_ecm_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 find_class:
     // clang-format on
     g_cdc_ecm_class.connect_status = false;
-    if (usbh_find_class_instance("/dev/cdc_ether") == NULL) {
+    if (usbh_find_class_instance("/dev/cdc_ether") == NULL || !g_cdc_ecm_class.hport) {
         goto delete;
     }
 
@@ -259,6 +271,11 @@ find_class:
 
     g_cdc_ecm_rx_length = 0;
     while (1) {
+        if (!g_cdc_ecm_class.hport || !g_cdc_ecm_class.bulkin) {
+            usb_osal_msleep(100);
+            goto find_class;
+        }
+
         usbh_bulk_urb_fill(&g_cdc_ecm_class.bulkin_urb, g_cdc_ecm_class.hport, g_cdc_ecm_class.bulkin, g_cdc_ecm_rx_buffer, CONFIG_USBHOST_CDC_ECM_ETH_MAX_SIZE, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_cdc_ecm_class.bulkin_urb);
         if (ret < 0) {
@@ -297,7 +314,7 @@ uint8_t *usbh_cdc_ecm_get_eth_txbuf(void)
 
 int usbh_cdc_ecm_eth_output(uint32_t buflen)
 {
-    if (g_cdc_ecm_class.connect_status == false) {
+    if (g_cdc_ecm_class.connect_status == false || !usbh_cdc_ecm_is_ready(&g_cdc_ecm_class)) {
         return -USB_ERR_NOTCONN;
     }
 

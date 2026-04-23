@@ -24,6 +24,11 @@
 
 static struct usbh_rndis g_rndis_class;
 
+static bool usbh_rndis_is_ready(const struct usbh_rndis *rndis_class)
+{
+    return rndis_class && rndis_class->hport && rndis_class->bulkin && rndis_class->bulkout;
+}
+
 static int usbh_rndis_get_notification(struct usbh_rndis *rndis_class)
 {
     (void)rndis_class;
@@ -211,6 +216,10 @@ int usbh_rndis_get_connect_status(struct usbh_rndis *rndis_class)
     int ret;
     uint8_t data[32];
     uint32_t data_len;
+
+    if (!rndis_class || !rndis_class->hport) {
+        return -USB_ERR_NOTCONN;
+    }
 
     ret = usbh_rndis_query_msg_transfer(rndis_class, OID_GEN_MEDIA_CONNECT_STATUS, 4, data, &data_len);
     if (ret < 0) {
@@ -438,6 +447,8 @@ static int usbh_rndis_disconnect(struct usbh_hubport *hport, uint8_t intf)
             usbh_rndis_stop(rndis_class);
         }
 
+        hport->config.intf[intf].priv = NULL;
+        hport->config.intf[intf].devname[0] = '\0';
         memset(rndis_class, 0, sizeof(struct usbh_rndis));
     }
 
@@ -464,7 +475,7 @@ void usbh_rndis_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 find_class:
     // clang-format on
     g_rndis_class.connect_status = false;
-    if (usbh_find_class_instance("/dev/rndis") == NULL) {
+    if (usbh_find_class_instance("/dev/rndis") == NULL || !g_rndis_class.hport) {
         goto delete;
     }
 
@@ -479,10 +490,15 @@ find_class:
 
     g_rndis_rx_length = 0;
     while (1) {
+        if (!g_rndis_class.hport || !g_rndis_class.bulkin) {
+            usb_osal_msleep(100);
+            goto find_class;
+        }
+
         usbh_bulk_urb_fill(&g_rndis_class.bulkin_urb, g_rndis_class.hport, g_rndis_class.bulkin, &g_rndis_rx_buffer[g_rndis_rx_length], transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_rndis_class.bulkin_urb);
         if (ret < 0) {
-            break;
+            goto find_class;
         }
 
         g_rndis_rx_length += g_rndis_class.bulkin_urb.actual_length;
@@ -554,7 +570,7 @@ int usbh_rndis_eth_output(uint32_t buflen)
     rndis_data_packet_t *hdr;
     uint32_t len;
 
-    if (g_rndis_class.connect_status == false) {
+    if (g_rndis_class.connect_status == false || !usbh_rndis_is_ready(&g_rndis_class)) {
         return -USB_ERR_NOTCONN;
     }
 

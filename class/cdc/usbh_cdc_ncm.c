@@ -31,6 +31,12 @@
 
 static struct usbh_cdc_ncm g_cdc_ncm_class;
 
+static bool usbh_cdc_ncm_is_ready(const struct usbh_cdc_ncm *cdc_ncm_class)
+{
+    return cdc_ncm_class && cdc_ncm_class->hport && cdc_ncm_class->intin &&
+           cdc_ncm_class->bulkin && cdc_ncm_class->bulkout;
+}
+
 static int usbh_cdc_ncm_get_ntb_parameters(struct usbh_cdc_ncm *cdc_ncm_class, struct cdc_ncm_ntb_parameters *param)
 {
     struct usb_setup_packet *setup;
@@ -78,6 +84,10 @@ static void print_ntb_parameters(struct cdc_ncm_ntb_parameters *param)
 int usbh_cdc_ncm_get_connect_status(struct usbh_cdc_ncm *cdc_ncm_class)
 {
     int ret;
+
+    if (!cdc_ncm_class || !cdc_ncm_class->hport || !cdc_ncm_class->intin) {
+        return -USB_ERR_NOTCONN;
+    }
 
     usbh_int_urb_fill(&cdc_ncm_class->intin_urb, cdc_ncm_class->hport, cdc_ncm_class->intin, g_cdc_ncm_inttx_buffer, 16, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&cdc_ncm_class->intin_urb);
@@ -244,6 +254,8 @@ static int usbh_cdc_ncm_disconnect(struct usbh_hubport *hport, uint8_t intf)
             usbh_cdc_ncm_stop(cdc_ncm_class);
         }
 
+        hport->config.intf[intf].priv = NULL;
+        hport->config.intf[intf].devname[0] = '\0';
         memset(cdc_ncm_class, 0, sizeof(struct usbh_cdc_ncm));
     }
 
@@ -266,7 +278,7 @@ void usbh_cdc_ncm_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 find_class:
     // clang-format on
     g_cdc_ncm_class.connect_status = false;
-    if (usbh_find_class_instance("/dev/cdc_ncm") == NULL) {
+    if (usbh_find_class_instance("/dev/cdc_ncm") == NULL || !g_cdc_ncm_class.hport) {
         goto delete;
     }
 
@@ -280,6 +292,11 @@ find_class:
 
     g_cdc_ncm_rx_length = 0;
     while (1) {
+        if (!g_cdc_ncm_class.hport || !g_cdc_ncm_class.bulkin) {
+            usb_osal_msleep(100);
+            goto find_class;
+        }
+
         usbh_bulk_urb_fill(&g_cdc_ncm_class.bulkin_urb, g_cdc_ncm_class.hport, g_cdc_ncm_class.bulkin, &g_cdc_ncm_rx_buffer[g_cdc_ncm_rx_length], transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_cdc_ncm_class.bulkin_urb);
         if (ret < 0) {
@@ -354,7 +371,7 @@ int usbh_cdc_ncm_eth_output(uint32_t buflen)
 {
     struct cdc_ncm_ndp16_datagram *ndp16_datagram;
 
-    if (g_cdc_ncm_class.connect_status == false) {
+    if (g_cdc_ncm_class.connect_status == false || !usbh_cdc_ncm_is_ready(&g_cdc_ncm_class)) {
         return -USB_ERR_NOTCONN;
     }
 

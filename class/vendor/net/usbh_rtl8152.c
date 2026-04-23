@@ -20,6 +20,12 @@
 
 static struct usbh_rtl8152 g_rtl8152_class;
 
+static bool usbh_rtl8152_is_ready(const struct usbh_rtl8152 *rtl8152_class)
+{
+    return rtl8152_class && rtl8152_class->hport && rtl8152_class->intin &&
+           rtl8152_class->bulkin && rtl8152_class->bulkout;
+}
+
 #define RTL8152_REQ_GET_REGS 0x05
 #define RTL8152_REQ_SET_REGS 0x05
 
@@ -1969,6 +1975,10 @@ int usbh_rtl8152_get_connect_status(struct usbh_rtl8152 *rtl8152_class)
 {
     int ret;
 
+    if (!rtl8152_class || !rtl8152_class->hport || !rtl8152_class->intin) {
+        return -USB_ERR_NOTCONN;
+    }
+
     usbh_int_urb_fill(&rtl8152_class->intin_urb, rtl8152_class->hport, rtl8152_class->intin, g_rtl8152_inttx_buffer, 2, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&rtl8152_class->intin_urb);
     if (ret < 0) {
@@ -2126,6 +2136,8 @@ static int usbh_rtl8152_disconnect(struct usbh_hubport *hport, uint8_t intf)
             usbh_rtl8152_stop(rtl8152_class);
         }
 
+        hport->config.intf[intf].priv = NULL;
+        hport->config.intf[intf].devname[0] = '\0';
         memset(rtl8152_class, 0, sizeof(struct usbh_rtl8152));
     }
 
@@ -2150,7 +2162,7 @@ void usbh_rtl8152_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 find_class:
     // clang-format on
     g_rtl8152_class.connect_status = false;
-    if (usbh_find_class_instance("/dev/rtl8152") == NULL) {
+    if (usbh_find_class_instance("/dev/rtl8152") == NULL || !g_rtl8152_class.hport) {
         goto delete;
     }
 
@@ -2174,6 +2186,11 @@ find_class:
 
     g_rtl8152_rx_length = 0;
     while (1) {
+        if (!g_rtl8152_class.hport || !g_rtl8152_class.bulkin) {
+            usb_osal_msleep(100);
+            goto find_class;
+        }
+
         usbh_bulk_urb_fill(&g_rtl8152_class.bulkin_urb, g_rtl8152_class.hport, g_rtl8152_class.bulkin, &g_rtl8152_rx_buffer[g_rtl8152_rx_length], transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_rtl8152_class.bulkin_urb);
         if (ret < 0) {
@@ -2237,7 +2254,7 @@ int usbh_rtl8152_eth_output(uint32_t buflen)
 {
     struct tx_desc *tx_desc;
 
-    if (g_rtl8152_class.connect_status == false) {
+    if (g_rtl8152_class.connect_status == false || !usbh_rtl8152_is_ready(&g_rtl8152_class)) {
         return -USB_ERR_NOTCONN;
     }
 
