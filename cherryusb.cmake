@@ -260,6 +260,8 @@ if(CONFIG_CHERRYUSB_HOST)
     OR CONFIG_CHERRYUSB_HOST_RTL8152
     OR CONFIG_CHERRYUSB_HOST_BL616
     )
+        list(APPEND cherryusb_srcs ${CMAKE_CURRENT_LIST_DIR}/common/usbh_eth_shared_buf.c)
+
         if("${CONFIG_CHERRYUSB_OSAL}" STREQUAL "idf")
             list(APPEND cherryusb_srcs ${CMAKE_CURRENT_LIST_DIR}/platform/idf/usbh_net.c)
         else()

@@ -1034,7 +1034,7 @@ static int generic_ocp_read(struct usbh_rtl8152 *tp, uint16_t index, uint16_t si
 static int generic_ocp_write(struct usbh_rtl8152 *tp, uint16_t index, uint16_t byteen,
                              uint16_t size, void *data, uint16_t type)
 {
-    int ret;
+    int ret = 0;
     uint16_t byteen_start, byteen_end, byen;
     uint16_t limit = 512;
     uint8_t *buf = data;

@@ -315,6 +315,7 @@ if GetDepend(['PKG_CHERRYUSB_HOST']):
         or GetDepend('PKG_CHERRYUSB_HOST_CDC_NCM') \
         or GetDepend('PKG_CHERRYUSB_HOST_ASIX') \
         or GetDepend('PKG_CHERRYUSB_HOST_RTL8152'):
+       src += Glob('common/usbh_eth_shared_buf.c')
        src += Glob('platform/rtthread/usbh_lwip.c')
 
 src += Glob('platform/rtthread/usb_msh.c')
