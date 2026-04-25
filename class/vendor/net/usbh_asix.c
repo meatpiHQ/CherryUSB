@@ -687,6 +687,9 @@ int usbh_asix_get_connect_status(struct usbh_asix *asix_class)
 void usbh_asix_rx_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
 {
     uint32_t g_asix_rx_length;
+    uint32_t remaining_size;
+    uint32_t urb_transfer_size;
+    uint32_t frame_len;
     int ret;
     uint16_t len;
     uint16_t len_crc;
@@ -723,7 +726,15 @@ find_class:
             goto find_class;
         }
 
-        usbh_bulk_urb_fill(&g_asix_class.bulkin_urb, g_asix_class.hport, g_asix_class.bulkin, &g_asix_rx_buffer[g_asix_rx_length], transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
+        remaining_size = CONFIG_USBHOST_ASIX_ETH_MAX_RX_SIZE - g_asix_rx_length;
+        if (remaining_size == 0) {
+            USB_LOG_ERR("Rx packet is overflow, please reduce tcp window size or increase CONFIG_USBHOST_ASIX_ETH_MAX_RX_SIZE\r\n");
+            while (1) {
+            }
+        }
+
+        urb_transfer_size = MIN(transfer_size, remaining_size);
+        usbh_bulk_urb_fill(&g_asix_class.bulkin_urb, g_asix_class.hport, g_asix_class.bulkin, &g_asix_rx_buffer[g_asix_rx_length], urb_transfer_size, USB_OSAL_WAITING_FOREVER, NULL, NULL);
         ret = usbh_submit_urb(&g_asix_class.bulkin_urb);
         if (ret < 0) {
             goto find_class;
@@ -736,24 +747,36 @@ find_class:
          * Short packet is zero, check if g_asix_class.bulkin_urb.actual_length < transfer_size, for example transfer is complete with size is 1024 < 2048.
         */
         if (g_asix_rx_length % USB_GET_MAXPACKETSIZE(g_asix_class.bulkin->wMaxPacketSize) ||
-            (g_asix_class.bulkin_urb.actual_length < transfer_size)) {
+            (g_asix_class.bulkin_urb.actual_length < urb_transfer_size)) {
             USB_LOG_DBG("rxlen:%d\r\n", g_asix_rx_length);
 
             data_offset = 0;
             while (g_asix_rx_length > 0) {
+                if (g_asix_rx_length < 4) {
+                    g_asix_rx_length = 0;
+                    break;
+                }
+
                 len = ((uint16_t)g_asix_rx_buffer[data_offset + 0] | ((uint16_t)(g_asix_rx_buffer[data_offset + 1]) << 8)) & 0x7ff;
                 len_crc = g_asix_rx_buffer[data_offset + 2] | ((uint16_t)(g_asix_rx_buffer[data_offset + 3]) << 8);
 
                 if (len != (~len_crc & 0x7ff)) {
                     USB_LOG_ERR("rx header error\r\n");
                     g_asix_rx_length = 0;
-                    continue;
+                    break;
+                }
+
+                frame_len = 4U + USB_ALIGN_UP((uint32_t)len, 2U);
+                if (frame_len > g_asix_rx_length) {
+                    USB_LOG_ERR("rx frame truncated\r\n");
+                    g_asix_rx_length = 0;
+                    break;
                 }
 
                 uint8_t *buf = (uint8_t *)&g_asix_rx_buffer[data_offset + 4];
                 usbh_asix_eth_input(buf, len);
-                g_asix_rx_length -= (len + 4);
-                data_offset += (len + 4);
+                g_asix_rx_length -= frame_len;
+                data_offset += frame_len;
 
                 if (g_asix_rx_length < 4) {
                     g_asix_rx_length = 0;
