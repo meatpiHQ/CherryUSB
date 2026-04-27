@@ -12,17 +12,18 @@ bool usbh_eth_shared_rx_buffer_overlaps(const uint8_t *buf, uint32_t len)
     uintptr_t start;
     uintptr_t end;
     uintptr_t shared_start = (uintptr_t)g_usbh_eth_shared_rx_buffer;
-    uintptr_t shared_end = shared_start + USBH_ETH_SHARED_RX_SIZE;
+    uintptr_t shared_end;
 
-    if ((buf == NULL) || (len == 0U)) {
+    if ((buf == NULL) || (len == 0U) || (USBH_ETH_SHARED_RX_SIZE == 0U)) {
         return false;
     }
 
+    shared_end = shared_start + USBH_ETH_SHARED_RX_SIZE - 1U;
     start = (uintptr_t)buf;
-    if ((uintptr_t)len > (UINTPTR_MAX - start)) {
+    if (((uintptr_t)len - 1U) > (UINTPTR_MAX - start)) {
         return false;
     }
 
-    end = start + len;
-    return (start < shared_end) && (end > shared_start);
+    end = start + len - 1U;
+    return (start <= shared_end) && (end >= shared_start);
 }
