@@ -197,7 +197,7 @@
  */
 // #define CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
 
-/* This parameter affects usb performance, and depends on (TCP_WND)tcp eceive windows size,
+/* This parameter affects usb performance, and depends on (TCP_WND)tcp receive windows size,
  * you can change to 2K ~ 16K and must be larger than TCP RX windows size in order to avoid being overflow.
  */
 #ifndef CONFIG_USBHOST_RNDIS_ETH_MAX_RX_SIZE
