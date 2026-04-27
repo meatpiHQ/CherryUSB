@@ -215,7 +215,7 @@ get_mac:
     USB_LOG_INFO("Register CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_cdc_ecm_run(cdc_ecm_class);
-    return 0;
+    return ret;
 
 errout:
     hport->config.intf[intf].priv = NULL;
