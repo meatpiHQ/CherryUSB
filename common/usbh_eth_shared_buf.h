@@ -7,7 +7,8 @@
 
 /*
  * This firmware only runs one USB ethernet host class at a time, so the
- * transfer and control buffers can share one DMA-safe internal pool.
+ * transfer and control buffers can share one internal pool that is allocated
+ * while an ethernet device is active.
  */
 
 #ifdef CONFIG_CHERRYUSB_HOST_CDC_ECM
@@ -66,9 +67,11 @@ enum {
 	USBH_ETH_SHARED_TX_SIZE = USBH_ETH_SHARED_TX_SIZE_2 > USBH_ETH_RTL8152_TX_SIZE ? USBH_ETH_SHARED_TX_SIZE_2 : USBH_ETH_RTL8152_TX_SIZE
 };
 
-extern uint8_t g_usbh_eth_shared_rx_buffer[USBH_ETH_SHARED_RX_SIZE];
-extern uint8_t g_usbh_eth_shared_tx_buffer[USBH_ETH_SHARED_TX_SIZE];
-extern uint8_t g_usbh_eth_shared_int_buffer[USBH_ETH_SHARED_INT_SIZE];
-extern uint8_t g_usbh_eth_shared_ctrl_buffer[USBH_ETH_SHARED_CTRL_SIZE];
+extern uint8_t *g_usbh_eth_shared_rx_buffer;
+extern uint8_t *g_usbh_eth_shared_tx_buffer;
+extern uint8_t *g_usbh_eth_shared_int_buffer;
+extern uint8_t *g_usbh_eth_shared_ctrl_buffer;
 
+int usbh_eth_shared_buf_alloc(void);
+void usbh_eth_shared_buf_free(void);
 bool usbh_eth_shared_rx_buffer_overlaps(const uint8_t *buf, uint32_t len);

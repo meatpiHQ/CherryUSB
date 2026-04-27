@@ -121,6 +121,11 @@ static int usbh_cdc_ncm_connect(struct usbh_hubport *hport, uint8_t intf)
 
     memset(cdc_ncm_class, 0, sizeof(struct usbh_cdc_ncm));
 
+    ret = usbh_eth_shared_buf_alloc();
+    if (ret < 0) {
+        return ret;
+    }
+
     cdc_ncm_class->hport = hport;
     cdc_ncm_class->ctrl_intf = intf;
     cdc_ncm_class->data_intf = intf + 1;
@@ -154,13 +159,14 @@ static int usbh_cdc_ncm_connect(struct usbh_hubport *hport, uint8_t intf)
 get_mac:
     if (mac_str_idx == 0xff) {
         USB_LOG_ERR("Do not find cdc ncm mac string\r\n");
-        return -1;
+        ret = -1;
+        goto errout;
     }
 
     memset(mac_buffer, 0, 12);
     ret = usbh_get_string_desc(cdc_ncm_class->hport, mac_str_idx, (uint8_t *)mac_buffer, 12);
     if (ret < 0) {
-        return ret;
+        goto errout;
     }
 
     for (int i = 0, j = 0; i < 12; i += 2, j++) {
@@ -227,6 +233,13 @@ get_mac:
 
     usbh_cdc_ncm_run(cdc_ncm_class);
     return ret;
+
+errout:
+    hport->config.intf[intf].priv = NULL;
+    hport->config.intf[intf + 1].priv = NULL;
+    memset(cdc_ncm_class, 0, sizeof(struct usbh_cdc_ncm));
+    usbh_eth_shared_buf_free();
+    return ret;
 }
 
 static int usbh_cdc_ncm_disconnect(struct usbh_hubport *hport, uint8_t intf)
@@ -257,6 +270,7 @@ static int usbh_cdc_ncm_disconnect(struct usbh_hubport *hport, uint8_t intf)
         hport->config.intf[intf].priv = NULL;
         hport->config.intf[intf].devname[0] = '\0';
         memset(cdc_ncm_class, 0, sizeof(struct usbh_cdc_ncm));
+        usbh_eth_shared_buf_free();
     }
 
     return ret;

@@ -526,6 +526,11 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
 
     memset(asix_class, 0, sizeof(struct usbh_asix));
 
+    ret = usbh_eth_shared_buf_alloc();
+    if (ret < 0) {
+        return ret;
+    }
+
     asix_class->hport = hport;
     asix_class->intf = intf;
 
@@ -543,7 +548,7 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
         ret = usbh_asix_read_cmd(asix_class, AX_CMD_READ_EEPROM,
                                  0x04 + i, 0, &asix_class->mac[i * 2], 2);
         if (ret < 0) {
-            return ret;
+            goto errout;
         }
     }
 
@@ -558,7 +563,7 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
     ret = usbh_asix_read_phy_addr(asix_class, true);
     if (ret < 0) {
         USB_LOG_ERR("Failed to read phy addr: %d\r\n", ret);
-        return ret;
+        goto errout;
     }
     asix_class->phy_addr = ret;
     asix_class->embd_phy = ((ret & 0x1f) == AX_EMBD_PHY_ADDR);
@@ -566,7 +571,7 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
     ret = usbh_asix_read_cmd(asix_class, AX_CMD_STATMNGSTS_REG, 0, 0, &asix_class->chipcode, 1);
     if (ret < 0) {
         USB_LOG_ERR("Failed to read STATMNGSTS_REG: %d\r\n", ret);
-        return ret;
+        goto errout;
     }
 
     asix_class->chipcode &= AX_CHIPCODE_MASK;
@@ -584,7 +589,8 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
             if (ep_desc->bEndpointAddress & 0x80) {
                 USBH_EP_INIT(asix_class->intin, ep_desc);
             } else {
-                return -USB_ERR_NOTSUPP;
+                ret = -USB_ERR_NOTSUPP;
+                goto errout;
             }
         } else {
             if (ep_desc->bEndpointAddress & 0x80) {
@@ -622,6 +628,12 @@ static int usbh_asix_connect(struct usbh_hubport *hport, uint8_t intf)
     USB_LOG_INFO("Register ASIX Class:%s\r\n", hport->config.intf[intf].devname);
     usbh_asix_run(asix_class);
     return ret;
+
+errout:
+    hport->config.intf[intf].priv = NULL;
+    memset(asix_class, 0, sizeof(struct usbh_asix));
+    usbh_eth_shared_buf_free();
+    return ret;
 }
 
 static int usbh_asix_disconnect(struct usbh_hubport *hport, uint8_t intf)
@@ -652,6 +664,7 @@ static int usbh_asix_disconnect(struct usbh_hubport *hport, uint8_t intf)
         hport->config.intf[intf].priv = NULL;
         hport->config.intf[intf].devname[0] = '\0';
         memset(asix_class, 0, sizeof(struct usbh_asix));
+        usbh_eth_shared_buf_free();
     }
 
     return ret;

@@ -85,7 +85,7 @@ static int usbh_rndis_init_msg_transfer(struct usbh_rndis *rndis_class)
     setup->bRequest = CDC_REQUEST_GET_ENCAPSULATED_RESPONSE;
     setup->wValue = 0;
     setup->wIndex = 0;
-    setup->wLength = sizeof(g_rndis_buf);
+    setup->wLength = USBH_ETH_SHARED_CTRL_SIZE;
 
     ret = usbh_control_transfer(rndis_class->hport, setup, (uint8_t *)resp);
     if (ret < 0) {
@@ -143,7 +143,7 @@ int usbh_rndis_query_msg_transfer(struct usbh_rndis *rndis_class, uint32_t oid, 
     setup->bRequest = CDC_REQUEST_GET_ENCAPSULATED_RESPONSE;
     setup->wValue = 0;
     setup->wIndex = 0;
-    setup->wLength = sizeof(g_rndis_buf);
+    setup->wLength = USBH_ETH_SHARED_CTRL_SIZE;
 
     ret = usbh_control_transfer(rndis_class->hport, setup, (uint8_t *)resp);
     if (ret < 0) {
@@ -200,7 +200,7 @@ static int usbh_rndis_set_msg_transfer(struct usbh_rndis *rndis_class, uint32_t 
     setup->bRequest = CDC_REQUEST_GET_ENCAPSULATED_RESPONSE;
     setup->wValue = 0;
     setup->wIndex = 0;
-    setup->wLength = sizeof(g_rndis_buf);
+    setup->wLength = USBH_ETH_SHARED_CTRL_SIZE;
 
     ret = usbh_control_transfer(rndis_class->hport, setup, (uint8_t *)resp);
     if (ret < 0) {
@@ -271,7 +271,7 @@ int usbh_rndis_keepalive(struct usbh_rndis *rndis_class)
     setup->bRequest = CDC_REQUEST_GET_ENCAPSULATED_RESPONSE;
     setup->wValue = 0;
     setup->wIndex = 0;
-    setup->wLength = sizeof(g_rndis_buf);
+    setup->wLength = USBH_ETH_SHARED_CTRL_SIZE;
 
     ret = usbh_control_transfer(rndis_class->hport, setup, (uint8_t *)resp);
     if (ret < 0) {
@@ -297,6 +297,11 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
 
     memset(rndis_class, 0, sizeof(struct usbh_rndis));
 
+    ret = usbh_eth_shared_buf_alloc();
+    if (ret < 0) {
+        return ret;
+    }
+
     rndis_class->hport = hport;
     rndis_class->ctrl_intf = intf;
     rndis_class->data_intf = intf + 1;
@@ -319,12 +324,12 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
 
     ret = usbh_rndis_init_msg_transfer(rndis_class);
     if (ret < 0) {
-        return ret;
+        goto errout;
     }
 
     ret = usbh_rndis_query_msg_transfer(rndis_class, OID_GEN_SUPPORTED_LIST, 0, tmp_buffer, &data_len);
     if (ret < 0) {
-        return ret;
+        goto errout;
     }
     oid_num = (data_len / 4);
     USB_LOG_INFO("rndis query OID_GEN_SUPPORTED_LIST success,oid num: %u\r\n", (unsigned int)oid_num);
@@ -395,13 +400,13 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
     uint32_t packet_filter = 0x0f;
     ret = usbh_rndis_set_msg_transfer(rndis_class, OID_GEN_CURRENT_PACKET_FILTER, (uint8_t *)&packet_filter, 4);
     if (ret < 0) {
-        return ret;
+        goto errout;
     }
 
     uint8_t multicast_list[6] = { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 };
     ret = usbh_rndis_set_msg_transfer(rndis_class, OID_802_3_MULTICAST_LIST, multicast_list, 6);
     if (ret < 0) {
-        return ret;
+        goto errout;
     }
 
     USB_LOG_INFO("rndis MAC address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
@@ -419,6 +424,11 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
     return ret;
 query_errorout:
     USB_LOG_ERR("rndis query iod:%08x error\r\n", (unsigned int)oid);
+errout:
+    hport->config.intf[intf].priv = NULL;
+    hport->config.intf[intf + 1].priv = NULL;
+    memset(rndis_class, 0, sizeof(struct usbh_rndis));
+    usbh_eth_shared_buf_free();
     return ret;
 }
 
@@ -450,6 +460,7 @@ static int usbh_rndis_disconnect(struct usbh_hubport *hport, uint8_t intf)
         hport->config.intf[intf].priv = NULL;
         hport->config.intf[intf].devname[0] = '\0';
         memset(rndis_class, 0, sizeof(struct usbh_rndis));
+        usbh_eth_shared_buf_free();
     }
 
     return ret;
