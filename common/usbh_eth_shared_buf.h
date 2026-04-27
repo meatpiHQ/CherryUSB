@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "usb_config.h"
 #include "usb_util.h"
@@ -69,3 +70,5 @@ extern uint8_t g_usbh_eth_shared_rx_buffer[USBH_ETH_SHARED_RX_SIZE];
 extern uint8_t g_usbh_eth_shared_tx_buffer[USBH_ETH_SHARED_TX_SIZE];
 extern uint8_t g_usbh_eth_shared_int_buffer[USBH_ETH_SHARED_INT_SIZE];
 extern uint8_t g_usbh_eth_shared_ctrl_buffer[USBH_ETH_SHARED_CTRL_SIZE];
+
+bool usbh_eth_shared_rx_buffer_contains(const uint8_t *buf, uint32_t len);

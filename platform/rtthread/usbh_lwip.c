@@ -17,6 +17,7 @@
 #include <netif/ethernetif.h>
 
 #include "usbh_core.h"
+#include "usbh_eth_shared_buf.h"
 
 #include "lwip/opt.h"
 
@@ -68,8 +69,10 @@ void usbh_lwip_eth_output_common(struct pbuf *p, uint8_t *buf)
 
 void usbh_lwip_eth_input_common(struct netif *netif, uint8_t *buf, uint32_t len)
 {
+    bool use_zero_copy = LWIP_TCPIP_CORE_LOCKING_INPUT &&
+                         !usbh_eth_shared_rx_buffer_contains(buf, len);
 #if LWIP_TCPIP_CORE_LOCKING_INPUT
-    pbuf_type type = PBUF_REF;
+    pbuf_type type = use_zero_copy ? PBUF_REF : PBUF_POOL;
 #else
     pbuf_type type = PBUF_POOL;
 #endif
@@ -79,7 +82,11 @@ void usbh_lwip_eth_input_common(struct netif *netif, uint8_t *buf, uint32_t len)
     p = pbuf_alloc(PBUF_RAW, len, type);
     if (p != NULL) {
 #if LWIP_TCPIP_CORE_LOCKING_INPUT
-        p->payload = buf;
+        if (use_zero_copy) {
+            p->payload = buf;
+        } else {
+            usb_memcpy(p->payload, buf, len);
+        }
 #else
         usb_memcpy(p->payload, buf, len);
 #endif
