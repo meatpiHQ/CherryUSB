@@ -7,8 +7,9 @@
 
 /*
  * This firmware only runs one USB ethernet host class at a time, so the
- * transfer and control buffers can share one internal pool that is allocated
- * while an ethernet device is active.
+ * transfer and control buffers can share one internal pool. Define
+ * CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC to allocate that pool only while an
+ * ethernet device is active.
  */
 
 #ifdef CONFIG_CHERRYUSB_HOST_CDC_ECM

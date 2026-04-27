@@ -13,12 +13,28 @@ uint8_t *g_usbh_eth_shared_tx_buffer;
 uint8_t *g_usbh_eth_shared_int_buffer;
 uint8_t *g_usbh_eth_shared_ctrl_buffer;
 
+#ifdef CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
 static void *g_usbh_eth_shared_rx_buffer_raw;
 static void *g_usbh_eth_shared_tx_buffer_raw;
 static void *g_usbh_eth_shared_int_buffer_raw;
 static void *g_usbh_eth_shared_ctrl_buffer_raw;
 static uint32_t g_usbh_eth_shared_buf_refcount;
+#else
+#if USBH_ETH_SHARED_RX_SIZE > 0U
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_usbh_eth_shared_rx_buffer_static[USBH_ETH_SHARED_RX_SIZE];
+#endif
+#if USBH_ETH_SHARED_TX_SIZE > 0U
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_usbh_eth_shared_tx_buffer_static[USBH_ETH_SHARED_TX_SIZE];
+#endif
+#if USBH_ETH_SHARED_INT_SIZE > 0U
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_usbh_eth_shared_int_buffer_static[USBH_ETH_SHARED_INT_SIZE];
+#endif
+#if USBH_ETH_SHARED_CTRL_SIZE > 0U
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_usbh_eth_shared_ctrl_buffer_static[USBH_ETH_SHARED_CTRL_SIZE];
+#endif
+#endif
 
+#ifdef CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
 static int usbh_eth_shared_buf_alloc_one(uint8_t **buffer, void **buffer_raw, uint32_t size)
 {
     uint32_t alloc_size;
@@ -67,9 +83,11 @@ static void usbh_eth_shared_buf_free_one(uint8_t **buffer, void **buffer_raw)
     *buffer = NULL;
     *buffer_raw = NULL;
 }
+#endif
 
 int usbh_eth_shared_buf_alloc(void)
 {
+#ifdef CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
     int ret;
 
     if (g_usbh_eth_shared_buf_refcount > 0U) {
@@ -106,10 +124,34 @@ errout:
     usbh_eth_shared_buf_free_one(&g_usbh_eth_shared_tx_buffer, &g_usbh_eth_shared_tx_buffer_raw);
     usbh_eth_shared_buf_free_one(&g_usbh_eth_shared_rx_buffer, &g_usbh_eth_shared_rx_buffer_raw);
     return ret;
+#else
+#if USBH_ETH_SHARED_RX_SIZE > 0U
+    g_usbh_eth_shared_rx_buffer = g_usbh_eth_shared_rx_buffer_static;
+#else
+    g_usbh_eth_shared_rx_buffer = NULL;
+#endif
+#if USBH_ETH_SHARED_TX_SIZE > 0U
+    g_usbh_eth_shared_tx_buffer = g_usbh_eth_shared_tx_buffer_static;
+#else
+    g_usbh_eth_shared_tx_buffer = NULL;
+#endif
+#if USBH_ETH_SHARED_INT_SIZE > 0U
+    g_usbh_eth_shared_int_buffer = g_usbh_eth_shared_int_buffer_static;
+#else
+    g_usbh_eth_shared_int_buffer = NULL;
+#endif
+#if USBH_ETH_SHARED_CTRL_SIZE > 0U
+    g_usbh_eth_shared_ctrl_buffer = g_usbh_eth_shared_ctrl_buffer_static;
+#else
+    g_usbh_eth_shared_ctrl_buffer = NULL;
+#endif
+    return 0;
+#endif
 }
 
 void usbh_eth_shared_buf_free(void)
 {
+#ifdef CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
     if (g_usbh_eth_shared_buf_refcount == 0U) {
         return;
     }
@@ -123,6 +165,7 @@ void usbh_eth_shared_buf_free(void)
     usbh_eth_shared_buf_free_one(&g_usbh_eth_shared_int_buffer, &g_usbh_eth_shared_int_buffer_raw);
     usbh_eth_shared_buf_free_one(&g_usbh_eth_shared_tx_buffer, &g_usbh_eth_shared_tx_buffer_raw);
     usbh_eth_shared_buf_free_one(&g_usbh_eth_shared_rx_buffer, &g_usbh_eth_shared_rx_buffer_raw);
+#endif
 }
 
 bool usbh_eth_shared_rx_buffer_overlaps(const uint8_t *buf, uint32_t len)

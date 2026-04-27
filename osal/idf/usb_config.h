@@ -191,6 +191,11 @@
 #define CONFIG_USBHOST_MSC_TIMEOUT 5000
 #endif
 
+/* Allocate the shared USB host ethernet buffers only while a device is active.
+ * When enabled, the shared pool is allocated from internal DMA-capable memory.
+ */
+// #define CONFIG_USBHOST_ETH_SHARED_BUF_DYNAMIC
+
 /* This parameter affects usb performance, and depends on (TCP_WND)tcp eceive windows size,
  * you can change to 2K ~ 16K and must be larger than TCP RX windows size in order to avoid being overflow.
  */
