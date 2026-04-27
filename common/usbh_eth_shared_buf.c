@@ -20,7 +20,7 @@ bool usbh_eth_shared_rx_buffer_overlaps(const uint8_t *buf, uint32_t len)
 
     shared_end = shared_start + USBH_ETH_SHARED_RX_SIZE - 1U;
     start = (uintptr_t)buf;
-    if (((uintptr_t)len - 1U) > (UINTPTR_MAX - start)) {
+    if ((UINTPTR_MAX - start) < ((uintptr_t)len - 1U)) {
         return false;
     }
 
